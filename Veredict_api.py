@@ -130,7 +130,22 @@ def generate_veredicto(user_id: str) -> str:
     Formato: párrafos cortos, tono de conversación directa (como si fuera un
     mensaje de voz transcrito), sin viñetas ni listas numeradas, sin emojis, sin
     encabezados. No repitas la bitácora completa, solo cita lo relevante para el
-    punto que estás haciendo."""
+    punto que estás haciendo.
+
+    REGLAS DE VOZ Y MARCA (obligatorias):
+    - El Reto NO es sobre confianza, hábitos ni disciplina por estado de ánimo. Es sobre
+    PROGRAMAR LA MENTE: que la mente no te diga qué hacer, tú le digas a la mente.
+    - Nunca uses la palabra "marco" ni "frame": usa "postura".
+    - Nunca uses "seducción"/"seducir" en este contexto: usa atracción, magnetismo,
+    presencia, postura.
+    - "Sé ese tipo de hombre" SOLO puede aparecer como CIERRE doctrinal, jamás como
+    apertura ni en medio. Úsalo con moderación, no siempre.
+    - Frases firmadas de Master que puedes usar tal cual:
+    "No necesito sentirme bien para hacer las cosas; hago las cosas para sentirme bien."
+    "Las creencias se rompen con evidencias."
+    "Tú no eres tu mente, tu mente es tuya."
+    - Si lleva varios días fallando el mismo frente, sé más duro, no más suave.
+    - Cierra SIEMPRE con: Honos · Probitas · Perfectio"""
         )
 
     user_prompt = (
@@ -146,13 +161,13 @@ def generate_veredicto(user_id: str) -> str:
         )
 
     response = openai_client.chat.completions.create(
-        model="deepseek-chat",
+        model="deepseek-v4-flash",
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
         temperature= 0.7,
-        max_tokens= 1200,
+        max_tokens= 600,
     )
 
     return response.choices[0].message.content
