@@ -158,7 +158,7 @@ def generate_veredicto(user_id: str) -> str:
     return response.choices[0].message.content
 
 
-app = FastAPI()
+app = FastAPI(debug=True)
 
 app.add_middleware(
     CORSMiddleware,
