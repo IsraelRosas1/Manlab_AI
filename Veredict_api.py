@@ -181,6 +181,7 @@ app.add_middleware(
         "https://app.manlabproject.com",
         "http://localhost:5173",
         "http://10.0.0.60:5173",
+        "http://35.16.106.252:5173",
     ],
     allow_methods=["GET"],
     allow_headers=["*"],
