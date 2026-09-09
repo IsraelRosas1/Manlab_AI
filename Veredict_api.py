@@ -176,6 +176,3 @@ def veredicto(user_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-if __name__ == "__main__":
-    test_user_id = "019fb5b2-5e2c-77fb-843a-4409abfcecf7"  # replace with a real user_id from your DB
-    print(generate_veredicto(test_user_id))
