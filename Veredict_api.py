@@ -162,7 +162,11 @@ app = FastAPI(debug=True)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://app.manlabproject.com"],
+    allow_origins=[
+        "https://app.manlabproject.com",
+        "http://localhost:5173",
+        "http://10.0.0.60:5173",
+    ],
     allow_methods=["GET"],
     allow_headers=["*"],
 )
@@ -174,4 +178,3 @@ def veredicto(user_id: str):
         return {"veredicto": generate_veredicto(user_id)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
