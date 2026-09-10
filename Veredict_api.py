@@ -3,11 +3,13 @@ import psycopg2
 import psycopg2.extras
 from psycopg2.pool import SimpleConnectionPool
 from contextlib import contextmanager
-from datetime import date, timedelta
+from datetime import date
 from dotenv import load_dotenv
 from openai import OpenAI
-from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from uuid import UUID
+
+from fastapi import FastAPI, HTTPException, Header, Query
 
 load_dotenv()
 
@@ -36,10 +38,12 @@ FRENTES = {
 }
 
 
-def get_last_7_days_bitacoras(user_id: str) -> list[dict]:
-    """Fetch this user's active enrollment logs from the last 7 days, oldest first."""
-    since = date.today() - timedelta(days=7)
-
+def get_bitacoras(
+    user_id: str,
+    enrollment_id: UUID,
+    period_start: date,
+    period_end: date
+) -> list[dict]:
     query = """
         SELECT
             rdl.log_date,
@@ -52,38 +56,70 @@ def get_last_7_days_bitacoras(user_id: str) -> list[dict]:
             rdl.note,
             rdl.is_complete
         FROM reto_daily_logs rdl
-        JOIN reto_enrollments re ON re.id = rdl.enrollment_id
-        WHERE re.user_id = %s
+        JOIN reto_enrollments re
+            ON re.id = rdl.enrollment_id
+        WHERE re.id = %s
+          AND re.user_id = %s
+          AND re.status = 'active'
           AND rdl.log_date >= %s
+          AND rdl.log_date <= %s
         ORDER BY rdl.log_date ASC;
     """
 
     with get_db_connection() as conn:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(query, (user_id, since))
+        with conn.cursor(
+            cursor_factory=psycopg2.extras.RealDictCursor
+        ) as cur:
+            cur.execute(
+                query,
+                (
+                    str(enrollment_id),
+                    user_id,
+                    period_start,
+                    period_end
+                )
+            )
             return [dict(row) for row in cur.fetchall()]
 
 
 def build_frentes_summary(logs: list[dict]) -> str:
-    """Turn boolean flags into a plain-text failure count per frente for the prompt."""
     fails = {label: 0 for label in FRENTES.values()}
+
     for log in logs:
-        for col, label in FRENTES.items():
-            if log[col] is False:
+        for column, label in FRENTES.items():
+            if log[column] is False:
                 fails[label] += 1
-    return ", ".join(f"{label}: {count} días fallados" for label, count in fails.items())
+
+    return ", ".join(
+        f"{label}: {count} días fallados"
+        for label, count in fails.items()
+    )
 
 
 def build_bitacoras_text(logs: list[dict]) -> str:
     lines = []
+
     for log in logs:
         note = log["note"] or "(sin nota)"
-        lines.append(f"Día {log['day_index']} ({log['log_date']}): {note}")
-    return "\n".join(lines) if lines else "Sin registros en los últimos 7 días."
+        lines.append(
+            f"Día {log['day_index']} ({log['log_date']}): {note}"
+        )
+
+    return "\n".join(lines) if lines else "Sin registros en el periodo solicitado."
 
 
-def generate_veredicto(user_id: str) -> str:
-    logs = get_last_7_days_bitacoras(user_id)
+def generate_veredicto(
+    user_id: str,
+    enrollment_id: UUID,
+    period_start: date,
+    period_end: date
+) -> str:
+    logs = get_bitacoras(
+        user_id,
+        enrollment_id,
+        period_start,
+        period_end
+    )
 
     frentes_summary = build_frentes_summary(logs)
     bitacoras_text = build_bitacoras_text(logs)
@@ -148,7 +184,7 @@ def generate_veredicto(user_id: str) -> str:
     return response.choices[0].message.content
 
 
-app = FastAPI(debug=True)
+app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
@@ -163,9 +199,63 @@ app.add_middleware(
 )
 
 
+INTERNAL_API_KEY = os.getenv("VERDICT_INTERNAL_API_KEY")
+
+
 @app.get("/veredicto/{user_id}")
-def veredicto(user_id: str):
+def veredicto(
+    user_id: str,
+    enrollment_id: UUID = Query(...),
+    period_start: date = Query(..., alias="from"),
+    period_end: date = Query(..., alias="to"),
+    x_internal_api_key: str | None = Header(default=None)
+):
+    if INTERNAL_API_KEY:
+        if x_internal_api_key != INTERNAL_API_KEY:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid internal API key"
+            )
+
+    today = date.today()
+
+    if period_start > period_end:
+        raise HTTPException(
+            status_code=400,
+            detail="The start date must be before the end date"
+        )
+
+    if period_end > today:
+        raise HTTPException(
+            status_code=400,
+            detail="Future dates are not allowed"
+        )
+
+    requested_days = (period_end - period_start).days + 1
+
+    if requested_days > 30:
+        raise HTTPException(
+            status_code=400,
+            detail="The maximum period is 30 days"
+        )
+
     try:
-        return {"veredicto": generate_veredicto(user_id)}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        result = generate_veredicto(
+            user_id=user_id,
+            enrollment_id=enrollment_id,
+            period_start=period_start,
+            period_end=period_end
+        )
+
+        return {
+            "veredicto": result
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as exception:
+        raise HTTPException(
+            status_code=500,
+            detail=str(exception)
+        )
