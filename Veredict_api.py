@@ -128,7 +128,7 @@ def build_bitacoras_text(logs: list[dict]) -> str:
     for log in logs:
         note = log["note"] or "(sin nota)"
         lines.append(
-            f"Día {log['day_index']} ({log['log_date']}): {note}"
+            f"Día ({log['log_date']}): {note}"
         )
 
     return "\n".join(lines) if lines else "Sin registros en el periodo solicitado."
