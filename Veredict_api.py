@@ -47,7 +47,6 @@ def get_bitacoras(
     query = """
         SELECT
             rdl.log_date,
-            rdl.day_index,
             rdl.f_intelectual,
             rdl.f_espiritual,
             rdl.f_fisico,
@@ -288,7 +287,7 @@ def generate_veredicto(
             {"role": "user", "content": user_prompt},
         ],
         temperature= 0.7,
-        max_tokens= 800,
+        max_tokens= 1200,
     )
 
     return response.choices[0].message.content
